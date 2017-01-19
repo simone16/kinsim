@@ -13,7 +13,7 @@ concentrationDelimiters = ['[',']']	# [prefix, suffix]
 exponential = 'e'	#Used for scientific notation
 outputColSep = '\t'
 #Simulation definitions (default values)----------------------------------------
-steps = 1000
+steps = 2000
 stepTime = 1
 #-------------------------------------------------------------------------------
 
@@ -81,7 +81,6 @@ for line in inputFile:
 			factorSign = [-1,1]
 			for word in line[i]:
 				coefficients.append( factorSign[i] )
-				#coefficient = re.search( '^[0-9\.e\-]+', word)
 				coefficient = re.search( '^[0-9]+(?:\.[0-9]+)?(?:'+exponential+'\-?[0-9]+)?', word)
 				if coefficient != None:
 						word = re.sub( re.escape(coefficient.group(0)), '', word)
@@ -101,11 +100,11 @@ for line in inputFile:
 				coefficients[i] = -coefficients[i]
 			simData.addReaction(chemicals, coefficients, invConstName, invConstVal)
 	else:
-		#Set the initial concentration of one of the chemicals
-		line = re.sub( re.escape(concentrationDelimiters[1])+' *'+assignOperator+' *', ' ', line)
-		line = re.sub( re.escape(concentrationDelimiters[0]), '', line)
-		line = re.split( ' ', line)
-		simData.addChemical( line[0], float(line[1]))
+		#Parse initial concentrations
+		line = re.findall( re.escape(concentrationDelimiters[0])+'(.+)'+
+			re.escape(concentrationDelimiters[1])+' *'+assignOperator+' *([0-9\.e]+)', line)
+		for assignment in line:
+			simData.addChemical( assignment[0], float(assignment[1]))
 inputFile.close()
 
 if options.verbose:

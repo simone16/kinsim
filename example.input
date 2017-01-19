@@ -1,4 +1,4 @@
-A + E <=> AE k1=0.1 k-1=0.0001
-AE -> B + E k2 = 0.01
-[A]=1
-[E]=0.1
+reagent + enzyme <=> complex k1=0.1 k-1=0.0001
+complex -> product + enzyme k2 = 0.01
+[reagent]=1
+[enzyme]=0.1
