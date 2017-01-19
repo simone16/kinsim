@@ -4,16 +4,13 @@ import re	#used to parse input file
 import Simulation as sim
 import matplotlib.pyplot as plt	#used to plot results
 
-#	TODO
-#maybe - printout of input mechanism
-#maybe - condense code for parsing mechanism
-
 #Sintax definitions-------------------------------------------------------------
 irreversibleSymbol = '->'
 reversibleSymbol = '<=>'
 separator = '+'
 assignOperator = '='
 concentrationDelimiters = ['[',']']	# [prefix, suffix]
+exponential = 'e'	#Used for scientific notation
 outputColSep = '\t'
 #Simulation definitions (default values)----------------------------------------
 steps = 1000
@@ -33,6 +30,8 @@ argParser.add_argument('-s','--steps', dest='steps', type=int,
 	help='''Number of steps to perform.''')
 argParser.add_argument('-t','--time-step', dest='timeStep', type=float, 
 	help='''Time for each step in seconds, assuming kinetic constants are given in 1/S.''')
+argParser.add_argument('-v','--verbose', action='store_true', dest='verbose',
+	help='''Print debugging info such as parsed data.''')
 options = argParser.parse_args()
 if options.steps != None:
 	steps = options.steps
@@ -49,50 +48,20 @@ irreversibleSymbol = re.escape(irreversibleSymbol)
 reversibleSymbol = re.escape(reversibleSymbol)
 separator = re.escape(separator)
 assignOperator = re.escape(assignOperator)
+exponential = re.escape(exponential)
 
 for line in inputFile:
+	reactionType = 0	#0=notype	1=irreversible	2=reversible
 	if re.search( irreversibleSymbol, line) != None:
-		#Add a single, irreversible, elementary reaction
-		chemicals = []	#Names of reagents and products
-		coefficients = []	#Ordered as the names
-		constName = ''
-		constVal = 0
-		
-		line = re.split(' *'+irreversibleSymbol+' *', line)
-		line[0] = re.split( ' *'+separator+' *', line[0])	#Reagents
-		line[1] = re.split( ' *'+separator+' *', line[1])	#Products + const
-		lastChemicalAndConst = re.split( ' +', line[1][-1], maxsplit=1)
-		line[1][-1] = lastChemicalAndConst[0]
-		const = re.split( ' *'+assignOperator+' *', lastChemicalAndConst[1])
-		constName = const[0]
-		constVal = float( const[1] )
-		for word in line[0]:
-			coefficients.append(-1.0)
-			coefficient = re.search( '^[0-9\.e\-]+', word)
-			if coefficient != None:
-					word = re.sub( re.escape(coefficient.group(0)), '', word)
-					coefficients[-1] = -float(coefficient.group(0))
-			chemicals.append(word)
-		for word in line[1]:
-			coefficients.append(1.0)
-			coefficient = re.search( '^[0-9\.e\-]+', word)
-			if coefficient != None:
-					word = re.sub( re.escape(coefficient.group(0)), '', word)
-					coefficients[-1] = float(coefficient.group(0))
-			chemicals.append(word)
-			
-		simData.addReaction(chemicals, coefficients, constName, constVal)
-		
+		reactionType = 1
 	elif re.search( reversibleSymbol, line) != None:
-		#Add two elementary reactions (direct and inverse)
+		reactionType = 2
+	if reactionType != 0:
 		chemicals = []	#Names of reagents and products
 		coefficients = []	#Ordered as the names
-		dirConstName = ''
-		dirConstVal = 0
-		invConstName = ''
-		invConstVal = 0
-		
-		line = re.split(' *'+reversibleSymbol+' *', line)
+	
+		#Split line into [reagents,products,constant]
+		line = re.split('(?: *'+reversibleSymbol+' *)|(?: *'+irreversibleSymbol+' *)', line)
 		line[0] = re.split( ' *'+separator+' *', line[0])	#Reagents
 		line[1] = re.split( ' *'+separator+' *', line[1])	#Products + consts
 		lastChemicalAndConst = re.split( ' +', line[1][-1], maxsplit=1)
@@ -100,27 +69,37 @@ for line in inputFile:
 		const = re.split( '(?: *'+assignOperator+' *)|(?: +)', lastChemicalAndConst[1])
 		dirConstName = const[0]
 		dirConstVal = float( const[1] )
-		invConstName = const[2]
-		invConstVal = float( const[3] )
-		for word in line[0]:
-			coefficients.append(-1.0)
-			coefficient = re.search( '^[0-9\.e\-]+', word)
-			if coefficient != None:
-					word = re.sub( re.escape(coefficient.group(0)), '', word)
-					coefficients[-1] = -float(coefficient.group(0))
-			chemicals.append(word)
-		for word in line[1]:
-			coefficients.append(1.0)
-			coefficient = re.search( '^[0-9\.e\-]+', word)
-			if coefficient != None:
-					word = re.sub( re.escape(coefficient.group(0)), '', word)
-					coefficients[-1] = float(coefficient.group(0))
-			chemicals.append(word)
-		
+		if reactionType == 2:
+			if len(const) >= 4:
+				invConstName = const[2]
+				invConstVal = float( const[3] )
+			else:
+				invConstName = dirConstName
+				invConstVal = dirConstVal
+		#For reagents and products, parse name and coefficient
+		for i in [0,1]:
+			factorSign = [-1,1]
+			for word in line[i]:
+				coefficients.append( factorSign[i] )
+				#coefficient = re.search( '^[0-9\.e\-]+', word)
+				coefficient = re.search( '^[0-9]+(?:\.[0-9]+)?(?:'+exponential+'\-?[0-9]+)?', word)
+				if coefficient != None:
+						word = re.sub( re.escape(coefficient.group(0)), '', word)
+						coefficients[-1] *= float(coefficient.group(0))
+				chemicals.append(word)
+		#Add reaction data to simData
+		if options.verbose:
+			print('Parsed reaction:')
+			print(chemicals)
+			print(coefficients)
+			print(dirConstName+' = '+str(dirConstVal))
+			if reactionType == 2:
+				print(invConstName+' = '+str(invConstVal))
 		simData.addReaction(chemicals, coefficients, dirConstName, dirConstVal)
-		for i in range(0,len(coefficients)):
-			coefficients[i] = -coefficients[i]
-		simData.addReaction(chemicals, coefficients, invConstName, invConstVal)
+		if reactionType == 2:
+			for i in range(0,len(coefficients)):
+				coefficients[i] = -coefficients[i]
+			simData.addReaction(chemicals, coefficients, invConstName, invConstVal)
 	else:
 		#Set the initial concentration of one of the chemicals
 		line = re.sub( re.escape(concentrationDelimiters[1])+' *'+assignOperator+' *', ' ', line)
@@ -129,10 +108,11 @@ for line in inputFile:
 		simData.addChemical( line[0], float(line[1]))
 inputFile.close()
 
-#Print some info on what has been parsed
-print('Parsed data:')
-print(simData.concentrationsNames)
-print(simData.concentrationsValues)
+if options.verbose:
+	#Print some info on what has been parsed
+	print('Initial Conditions:')
+	print(simData.concentrationsNames)
+	print(simData.concentrationsValues)
 
 #Run simulation, data is stored as [ [A,B,C,..(step1)] , [A,B,..(step2)] , ... ]
 if steps > 0:

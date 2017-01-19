@@ -3,7 +3,6 @@ class Simulation:
 		self.concentrationsNames = []	#concentrations of the species involved
 		self.concentrationsValues = []
 		self._concentrationsValuesBuffer = []
-	
 		self.reactions = []
 	
 	def addReaction(self, names, coefficients, constName, constVal):
@@ -13,13 +12,7 @@ class Simulation:
 			newReaction.coefficients.append( coefficients[i])
 		newReaction.constantName = constName
 		newReaction.constantValue = constVal
-		print( 'New reaction:' )
-		print( newReaction.chemicals )
-		print( newReaction.coefficients )
-		print( constName+' = '+str(constVal) )
 		self.reactions.append( newReaction )
-			
-		
 	
 	def addChemical(self, name, concentration):
 		for i in range(0,len(self.concentrationsNames)):
